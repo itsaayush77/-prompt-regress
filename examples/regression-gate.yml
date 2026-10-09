@@ -1,0 +1,31 @@
+# Reusable snippet: gate your own repo's prompts with prompt-regress.
+# Copy the job below into your workflow. It checks out BOTH repos
+# (yours for the suite file, prompt-regress for the CLI), runs the suite,
+# fails the build on regression, and posts a markdown report to the summary.
+#
+# Required: OPENAI_API_KEY secret for real models. Use model "mock" for a
+# free offline smoke test.
+
+regress-prompts:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        path: app
+    - uses: actions/checkout@v4
+      with:
+        repository: itsaayush77/-prompt-regress
+        path: prompt-regress
+    - uses: actions/setup-node@v4
+      with: { node-version: 22 }
+    - run: npm ci
+      working-directory: prompt-regress
+    - name: prompt regression gate
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      run: |
+        npx tsx src/cli.ts \
+          --file ../app/prompt-tests/suite.yaml \
+          --fail-on-regress \
+          --report markdown >> $GITHUB_STEP_SUMMARY
+      working-directory: prompt-regress
