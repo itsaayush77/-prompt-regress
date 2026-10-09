@@ -1,5 +1,10 @@
 import type { Assertion, AssertionResult } from "./types.js";
 
+/**
+ * Substitute {{var}} placeholders. Unknown keys are intentionally left as
+ * `{{key}}` (not "") so a missing variable stays visible in the rendered
+ * prompt instead of silently changing its meaning.
+ */
 export function renderPrompt(template: string, vars: Record<string, string> = {}): string {
   return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => vars[k] ?? `{{${k}}}`);
 }

@@ -4,3 +4,5 @@ client/dist/
 client/node_modules/
 data/runs.json
 .env
+
+GUIDE.local.md
