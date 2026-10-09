@@ -2,8 +2,7 @@
 
 Prompt/LLM regression tester — run YAML test suites against prompts/models, diff pass/fail, cost and latency, gate releases in CI.
 
-![CI](https://github.com/itsaayush77/-prompt-regress/actions/workflows/ci/badge.svg)
-![License](https://img.shields.io/badge/license-MIT-green)
+
 
 ## What it does
 
