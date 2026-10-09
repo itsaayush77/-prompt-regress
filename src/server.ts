@@ -1,16 +1,39 @@
 import cors from "cors";
-import express from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { compareRuns, runSuite } from "./runner.js";
 import { getRun, listRuns, saveRun } from "./store.js";
+import { parseSuite } from "./suiteSchema.js";
 import type { SuiteConfig } from "./types.js";
 
 export const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
+
+/** Tiny in-memory sliding-window limiter (per IP). No dependency needed. */
+export function createRateLimiter({ windowMs, max }: { windowMs: number; max: number }) {
+  const hits = new Map<string, number[]>();
+  return (req: Request, res: Response, next: NextFunction) => {
+    const now = Date.now();
+    const key = req.ip ?? "unknown";
+    const recent = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
+    if (recent.length >= max) {
+      res.status(429).json({ error: "rate limited, try again shortly" });
+      return;
+    }
+    recent.push(now);
+    hits.set(key, recent);
+    next();
+  };
+}
+
+const runLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: Number(process.env.RATE_LIMIT_PER_MIN ?? 60),
+});
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
@@ -25,15 +48,18 @@ app.get("/api/runs/:id", async (req, res) => {
   res.json(run);
 });
 
-app.post("/api/runs", async (req, res) => {
+app.post("/api/runs", runLimiter, async (req, res) => {
   try {
     const body = req.body as { suite?: SuiteConfig; yaml?: string };
+    const raw = body.yaml ? yaml.load(body.yaml) : body.suite;
+    if (raw === undefined) return res.status(400).json({ error: "provide suite JSON or yaml string" });
     let suite: SuiteConfig;
-    if (body.yaml) suite = yaml.load(body.yaml) as SuiteConfig;
-    else if (body.suite) suite = body.suite;
-    else return res.status(400).json({ error: "provide suite JSON or yaml string" });
-    if (!suite?.tests?.length) return res.status(400).json({ error: "suite.tests must be non-empty" });
-    const run = await runSuite({ temperature: 0, ...suite, model: suite.model || "mock" });
+    try {
+      suite = parseSuite(raw);
+    } catch (e: any) {
+      return res.status(400).json({ error: String(e?.message ?? e) });
+    }
+    const run = await runSuite({ temperature: 0, ...suite });
     await saveRun(run);
     res.status(201).json(run);
   } catch (e: any) {

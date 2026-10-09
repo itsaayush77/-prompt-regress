@@ -61,3 +61,67 @@ test("openai-compatible provider propagates network errors", async () => {
   const p = new OpenAICompatibleProvider("m", "key", "http://x");
   await assert.rejects(() => p.complete("hi"), /boom/);
 });
+
+test("openai-compatible provider retries a 500 then succeeds", async () => {
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls++;
+    if (calls === 1) return { ok: false, status: 500, text: async () => "oops" };
+    return { ok: true, json: async () => ({ choices: [{ message: { content: "recovered" } }] }) };
+  }) as any;
+  const p = new OpenAICompatibleProvider("m", "key", "http://x");
+  assert.equal((await p.complete("hi")).text, "recovered");
+  assert.equal(calls, 2);
+});
+
+test("openai-compatible provider retries a 429 then succeeds", async () => {
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls++;
+    if (calls === 1) return { ok: false, status: 429, text: async () => "slow down" };
+    return { ok: true, json: async () => ({ choices: [{ message: { content: "ok" } }] }) };
+  }) as any;
+  const p = new OpenAICompatibleProvider("m", "key", "http://x");
+  assert.equal((await p.complete("hi")).text, "ok");
+  assert.equal(calls, 2);
+});
+
+test("openai-compatible provider gives up after repeated 500s", async () => {
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls++;
+    return { ok: false, status: 500, text: async () => "still down" };
+  }) as any;
+  const p = new OpenAICompatibleProvider("m", "key", "http://x");
+  await assert.rejects(() => p.complete("hi"), /provider 500/);
+  assert.equal(calls, 3);
+});
+
+test("openai-compatible provider does not retry a 400", async () => {
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls++;
+    return { ok: false, status: 400, text: async () => "bad request" };
+  }) as any;
+  const p = new OpenAICompatibleProvider("m", "key", "http://x");
+  await assert.rejects(() => p.complete("hi"), /provider 400/);
+  assert.equal(calls, 1);
+});
+
+test("openai-compatible provider times out a hanging request", async () => {
+  process.env.PROMPT_REGRESS_TIMEOUT_MS = "50";
+  globalThis.fetch = ((_url: any, init: any) =>
+    new Promise((_res, rej) => {
+      init?.signal?.addEventListener("abort", () => {
+        const e = new Error("aborted");
+        e.name = "AbortError";
+        rej(e);
+      });
+    })) as any;
+  try {
+    const p = new OpenAICompatibleProvider("m", "key", "http://x");
+    await assert.rejects(() => p.complete("hi"), /timeout after 50ms/);
+  } finally {
+    delete process.env.PROMPT_REGRESS_TIMEOUT_MS;
+  }
+});

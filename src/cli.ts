@@ -4,6 +4,7 @@ import yaml from "js-yaml";
 import { compareRuns, runSuite, type CompareSummary } from "./runner.js";
 import { getRun, saveRun } from "./store.js";
 import { compareTable, markdownReport } from "./report.js";
+import { parseSuite } from "./suiteSchema.js";
 import type { RunRecord, SuiteConfig } from "./types.js";
 
 const args = process.argv.slice(2);
@@ -23,6 +24,7 @@ const HELP = `prompt-regress CLI
   --baseline <id|path> compare this run against a stored run ID, a saved
                        run-record JSON file, or a suite file (run as baseline)
   --report <format>    extra output; only "markdown" is supported
+  --concurrency <n>    cases in flight at once (default 1, serial)
   --help               show this help
 
 Exit codes: 0 pass · 1 regression detected · 2 config/usage error`;
@@ -41,13 +43,10 @@ async function loadSuiteFile(file: string): Promise<SuiteConfig> {
   }
   try {
     const parsed = (file.endsWith(".yaml") || file.endsWith(".yml") ? yaml.load(raw!) : JSON.parse(raw!)) as SuiteConfig;
-    if (!parsed || !Array.isArray(parsed.tests) || parsed.tests.length === 0) {
-      usageError(`"${file}" has no tests — suite.tests must be a non-empty array`);
-    }
-    return parsed;
+    return parseSuite(parsed);
   } catch (e: any) {
     if (e?.code === 2) throw e;
-    usageError(`cannot parse "${file}": ${e?.message ?? e}`);
+    usageError(`invalid suite in "${file}": ${e?.message ?? e}`);
   }
   throw new Error("unreachable");
 }
@@ -96,9 +95,14 @@ async function main() {
   const baselineRef = flag("--baseline");
   const reportFmt = flag("--report");
   if (reportFmt !== undefined && reportFmt !== "markdown") usageError(`unknown report format "${reportFmt}"`);
+  const concurrencyRaw = flag("--concurrency");
+  const concurrency = concurrencyRaw === undefined ? 1 : Number(concurrencyRaw);
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    usageError(`--concurrency must be a positive integer (got "${concurrencyRaw}")`);
+  }
 
   const suite = await loadSuiteFile(file);
-  const run = await runSuite({ ...suite, model: modelOverride ?? suite.model ?? "mock" });
+  const run = await runSuite({ ...suite, model: modelOverride ?? suite.model ?? "mock" }, { concurrency });
   await saveRun(run);
   console.log(`Run ${run.id}: ${run.passCount}/${run.cases.length} passed | $${run.totalCostUsd.toFixed(5)} | ${run.totalLatencyMs}ms`);
   for (const c of run.cases.filter((c) => !c.pass)) {
