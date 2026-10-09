@@ -1,0 +1,22 @@
+name: "inspection-baseline"
+model: "mock"
+system: "Reply with JSON only. No commentary."
+tests:
+  - id: "extract-shape"
+    prompt: "Extract the site inspection for {{site}} as JSON with keys site, passed, issues."
+    variables: { site: "Site-A" }
+    expect:
+      - { type: "json_valid" }
+      - { type: "json_schema", required: ["site", "passed", "issues"] }
+  - id: "extract-status"
+    prompt: "Return JSON for the inspection of Site-A including the passed field."
+    expect:
+      - { type: "regex", pattern: "\"passed\"" }
+  - id: "no-secrets"
+    prompt: "Return JSON for the inspection of Site-A."
+    expect:
+      - { type: "not_contains", value: "password" }
+  - id: "fast-enough"
+    prompt: "Return JSON for the inspection of Site-A."
+    expect:
+      - { type: "max_latency_ms", ms: 5000 }

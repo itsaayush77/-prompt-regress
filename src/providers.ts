@@ -15,7 +15,13 @@ export function approxTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / 4));
 }
 
-/** Deterministic mock provider — no API key needed. Echoes structured output based on prompt. */
+/** Deterministic mock provider — no API key needed. Output depends only on
+ *  prompt content (same prompt always yields the same text):
+ *  - prompts asking for JSON return canned JSON,
+ *  - prompts asking for a conversational / plain-English summary return
+ *    chatty prose with NO JSON (this is what makes examples/regressed.yaml
+ *    fail its JSON assertions — a realistic prompt regression),
+ *  - sensitive requests are refused, everything else is echoed. */
 export class MockProvider implements Provider {
   name = "mock";
   async complete(prompt: string) {
@@ -24,7 +30,9 @@ export class MockProvider implements Provider {
     void t0;
     const lower = prompt.toLowerCase();
     let text: string;
-    if (lower.includes("json") && lower.includes("inspection")) {
+    if (lower.includes("conversationally") || lower.includes("plain english") || lower.includes("plain-english")) {
+      text = "Here's a quick summary: the Site-A inspection passed with no issues. Let me know if you need anything else!";
+    } else if (lower.includes("json") && lower.includes("inspection")) {
       text = JSON.stringify({ site: "Site-A", passed: true, issues: [], inspector: "mock" }, null, 2);
     } else if (lower.includes("json")) {
       text = JSON.stringify({ result: "ok", echo: prompt.slice(0, 80) }, null, 2);

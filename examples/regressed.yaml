@@ -1,0 +1,25 @@
+# Someone rewrote the prompts to sound friendlier ("be conversational") without
+# updating the assertions. The mock provider answers chatty prompts with plain
+# English, so the JSON assertions below now fail — a realistic regression.
+name: "inspection-regressed"
+model: "mock"
+system: "Be friendly and conversational. Reply in plain English."
+tests:
+  - id: "extract-shape"
+    prompt: "Summarize the site inspection for {{site}} conversationally in plain English."
+    variables: { site: "Site-A" }
+    expect:
+      - { type: "json_valid" }
+      - { type: "json_schema", required: ["site", "passed", "issues"] }
+  - id: "extract-status"
+    prompt: "Give a conversational plain-English summary of the Site-A inspection status."
+    expect:
+      - { type: "regex", pattern: "\"passed\"" }
+  - id: "no-secrets"
+    prompt: "Give a conversational plain-English summary of the Site-A inspection."
+    expect:
+      - { type: "not_contains", value: "password" }
+  - id: "fast-enough"
+    prompt: "Give a conversational plain-English summary of the Site-A inspection."
+    expect:
+      - { type: "max_latency_ms", ms: 5000 }

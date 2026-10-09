@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "cli": "tsx src/cli.ts",
+    "demo:regression": "tsx src/demo.ts",
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
