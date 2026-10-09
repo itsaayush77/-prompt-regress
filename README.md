@@ -185,9 +185,26 @@ work, not to compete on features.
 
 ## Contributing
 
+## Hosted demo (mock-only)
+
+Set `DEMO_MODE=true` to force the mock provider and ignore API keys entirely —
+safe to expose publicly. The demo also tightens limits: 100kb request bodies,
+30 req/min rate limit, 20 stored runs. The Docker image is mock-only by
+default (`ENV DEMO_MODE=true` in the Dockerfile) and serves API + UI from one
+service on `$PORT`.
+
+**Render:** new Web Service → Docker → repo URL. No env vars needed.
+
+**Fly.io:**
+
+```bash
+fly launch --no-deploy
+fly deploy
+```
+
 ```bash
 npm install
-npm test          # 57 tests, must stay green
+npm test          # 59 tests, must stay green
 npm run build     # TypeScript strict, must compile
 ```
 

@@ -1,6 +1,6 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { MockProvider, OpenAICompatibleProvider } from "../src/providers.ts";
+import { MockProvider, OpenAICompatibleProvider, isDemoMode, makeProvider } from "../src/providers.ts";
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -108,6 +108,19 @@ test("openai-compatible provider does not retry a 400", async () => {
   assert.equal(calls, 1);
 });
 
+test("demo mode forces the mock provider and ignores API keys", async () => {
+  process.env.DEMO_MODE = "true";
+  process.env.OPENAI_API_KEY = "sk-real";
+  try {
+    assert.equal(isDemoMode(), true);
+    const p = makeProvider("gpt-4o");
+    assert.ok(p instanceof MockProvider);
+  } finally {
+    delete process.env.DEMO_MODE;
+    delete process.env.OPENAI_API_KEY;
+  }
+  assert.equal(isDemoMode(), false);
+});
 test("openai-compatible provider times out a hanging request", async () => {
   process.env.PROMPT_REGRESS_TIMEOUT_MS = "50";
   globalThis.fetch = ((_url: any, init: any) =>

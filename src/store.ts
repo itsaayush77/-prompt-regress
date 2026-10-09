@@ -5,7 +5,11 @@ import type { RunRecord } from "./types.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DATA_FILE = process.env.DATA_FILE ?? join(root, "data", "runs.json");
-const MAX_RUNS = 50;
+
+// Public demo instances keep fewer runs.
+function maxRuns(): number {
+  return process.env.DEMO_MODE === "true" ? 20 : 50;
+}
 
 async function readAll(): Promise<RunRecord[]> {
   try {
@@ -18,7 +22,7 @@ async function readAll(): Promise<RunRecord[]> {
 
 async function writeAll(runs: RunRecord[]): Promise<void> {
   await fs.mkdir(dirname(DATA_FILE), { recursive: true });
-  await fs.writeFile(DATA_FILE, JSON.stringify(runs.slice(0, MAX_RUNS), null, 2));
+  await fs.writeFile(DATA_FILE, JSON.stringify(runs.slice(0, maxRuns()), null, 2));
 }
 
 export async function saveRun(run: RunRecord): Promise<RunRecord> {

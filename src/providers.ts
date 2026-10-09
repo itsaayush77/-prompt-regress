@@ -113,7 +113,14 @@ export class OpenAICompatibleProvider implements Provider {
   }
 }
 
+export function isDemoMode(): boolean {
+  return process.env.DEMO_MODE === "true";
+}
+
 export function makeProvider(model: string): Provider {
+  // Demo mode: public instances can only use the mock provider — API keys
+  // are ignored entirely so a deployed demo cannot spend anyone's money.
+  if (isDemoMode()) return new MockProvider();
   const key = process.env.OPENAI_API_KEY ?? "";
   const base = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
   if (model === "mock" || !key) return new MockProvider();

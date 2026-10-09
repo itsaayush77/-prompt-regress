@@ -7,11 +7,13 @@ import yaml from "js-yaml";
 import { compareRuns, runSuite } from "./runner.js";
 import { getRun, listRuns, saveRun } from "./store.js";
 import { parseSuite } from "./suiteSchema.js";
+import { isDemoMode } from "./providers.js";
 import type { SuiteConfig } from "./types.js";
 
 export const app = express();
 app.use(cors());
-app.use(express.json({ limit: "1mb" }));
+// Tighter body cap on public demo instances.
+app.use(express.json({ limit: isDemoMode() ? "100kb" : "1mb" }));
 
 /** Tiny in-memory sliding-window limiter (per IP). No dependency needed. */
 export function createRateLimiter({ windowMs, max }: { windowMs: number; max: number }) {
@@ -32,10 +34,11 @@ export function createRateLimiter({ windowMs, max }: { windowMs: number; max: nu
 
 const runLimiter = createRateLimiter({
   windowMs: 60_000,
-  max: Number(process.env.RATE_LIMIT_PER_MIN ?? 60),
+  // Stricter on public demo instances.
+  max: Number(process.env.RATE_LIMIT_PER_MIN ?? (isDemoMode() ? 30 : 60)),
 });
 
-app.get("/api/health", (_req, res) => res.json({ ok: true }));
+app.get("/api/health", (_req, res) => res.json({ ok: true, demo: isDemoMode() }));
 
 app.get("/api/runs", async (_req, res) => {
   const runs = await listRuns();
@@ -83,5 +86,7 @@ if (existsSync(clientDist)) {
   app.use(express.static(clientDist));
 }
 if (process.env.NODE_ENV !== "test") {
-  app.listen(PORT, () => console.log(`prompt-regress API on :${PORT}`));
+  app.listen(PORT, () => {
+    console.log(`prompt-regress API on :${PORT}${isDemoMode() ? " (DEMO MODE: mock provider only)" : ""}`);
+  });
 }

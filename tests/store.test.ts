@@ -44,3 +44,16 @@ test("store recovers from corrupted JSON", async () => {
   assert.deepEqual(await listRuns(), []);
   await rm(dataFile, { force: true });
 });
+
+test("store caps at 20 runs in demo mode", async () => {
+  process.env.DEMO_MODE = "true";
+  try {
+    for (let i = 0; i < 25; i++) await saveRun(fakeRun(`d${i}`));
+    const all = await listRuns();
+    assert.equal(all.length, 20);
+    assert.equal(all[0].id, "d24");
+  } finally {
+    delete process.env.DEMO_MODE;
+    await rm(dataFile, { force: true });
+  }
+});
